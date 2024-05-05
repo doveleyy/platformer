@@ -7,6 +7,7 @@
 
 int nScreenWidth = 60;
 int nScreenHeight = 30;
+int nPixels = nScreenWidth * nScreenHeight;
 DWORD dwBytesWritten;
 auto clock1 = std::chrono::high_resolution_clock::now();
 auto clock2 = std::chrono::high_resolution_clock::now();
@@ -66,10 +67,11 @@ public:
     float fPlayerY;
     float fPlayerXVelo = 0.0f;
     float fPlayerYVelo = 0.0f;
+    bool bOnGround;
 
     //Constants (adjust these)
-    float fPlayerJumpVelo = 2.0f;
-    float fPlayerFallAccel = 2.0f;
+    float fPlayerJumpVelo = 6.0f;
+    float fPlayerFallAccel = 6.0f;
     float fPlayerXAccel = 16.0f;
     float fFrictionCoefficient = 0.2f;
 
@@ -92,11 +94,17 @@ public:
             fPlayerXVelo -= fPlayerXAccel * dt;
         }
 
+        if (GetAsyncKeyState((unsigned short)'W') & 0x8000) {
+            if (bOnGround == true) {
+                fPlayerYVelo = -fPlayerJumpVelo;
+            }
+        }
+
         //Resistance
         fPlayerXVelo *= std::pow(fFrictionCoefficient, dt);
         fPlayerX += fPlayerXVelo * dt;
 
-        //Collision Detection
+        //Collision Detection X
         if (fPlayerXVelo > 0) {
             if (round(fPlayerX) + 1 < map.width && map.gameMap[round(fPlayerY)][round(fPlayerX) + 1] == L'#' 
             || round(fPlayerX) + 1 == map.width) {
@@ -106,12 +114,41 @@ public:
         }
         
         if (fPlayerXVelo < 0) {
-            if (fPlayerXVelo < 0 && round(fPlayerX) - 1 >= 0 && map.gameMap[round(fPlayerY)][round(fPlayerX) - 1] == L'#'
+            if (round(fPlayerX) - 1 >= 0 && map.gameMap[round(fPlayerY)][round(fPlayerX) - 1] == L'#'
             || round(fPlayerX) == 0) {
                 fPlayerXVelo = 0;
                 fPlayerX = round(fPlayerX);
             }
         }
+
+        //Collision Detection Y
+        if (round(fPlayerY) + 1 < map.height && map.gameMap[round(fPlayerY) + 1][round(fPlayerX)] == L'#') {
+            if (fPlayerYVelo > 0) {
+                fPlayerYVelo = 0;
+                fPlayerY = round(fPlayerY);
+            }
+            bOnGround = true;
+        } else {
+            bOnGround = false;
+            fPlayerYVelo += fPlayerFallAccel * dt;
+        }
+
+        if (round(fPlayerY) + 1 < map.height && map.gameMap[round(fPlayerY)][round(fPlayerX)] == L'#') {
+            while (round(fPlayerY) + 1 < map.height && map.gameMap[round(fPlayerY)][round(fPlayerX)] == L'#') {
+                fPlayerY -= 1;
+            }
+            bOnGround = true;
+        }
+
+        if (fPlayerYVelo < 0) {
+            if (round(fPlayerY) - 1 >= 0 && map.gameMap[round(fPlayerY) - 1][round(fPlayerX)] == L'#') {
+                fPlayerYVelo = 0;
+                fPlayerY = round(fPlayerY);
+            }
+        }
+
+        //Gravity
+        fPlayerY += fPlayerYVelo * dt;
     }
 };
 
@@ -130,7 +167,15 @@ void render(const Player& player, const Map& map, HANDLE& console, wchar_t* scre
     //Render Player
     int playerX = round(player.fPlayerX);
     int playerY = round(player.fPlayerY);
-    screen[playerY * map.height + playerX] = L'0';
+    if ((playerY * map.width + playerX) < (nScreenWidth * nScreenHeight) && 
+    (playerY * map.width + playerX) >= 0) {
+        screen[playerY * map.width + playerX] = L'O';
+    }
+
+    //Render debugger
+    if (player.bOnGround) {
+        screen[0] = L'T';
+    } else screen[0] = L'F';
 
     //Render FPS
 
@@ -140,7 +185,7 @@ void render(const Player& player, const Map& map, HANDLE& console, wchar_t* scre
 
 int main(void) {
     //Create Screen Buffer
-    wchar_t* screen = new wchar_t[nScreenWidth*nScreenHeight];
+    wchar_t* screen = new wchar_t[nPixels];
 
     //Console Output Buffer
     HANDLE hConsole = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
@@ -151,9 +196,9 @@ int main(void) {
     SetConsoleActiveScreenBuffer(hConsole);
 
     //Initialize
-    Player player(10, 10);
+    Player player(20, 24);
     Map map;
-    map.loadMap("map2.txt");
+    map.loadMap("map.txt");
     
     //Game Loop
     while(true) {

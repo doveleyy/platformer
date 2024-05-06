@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <iostream>
 #include <chrono>
 #include <vector>
 #include <fstream>
@@ -8,19 +9,40 @@
 int nScreenWidth = 60;
 int nScreenHeight = 30;
 int nPixels = nScreenWidth * nScreenHeight;
+std::vector<int> position;
 DWORD dwBytesWritten;
 auto clock1 = std::chrono::high_resolution_clock::now();
 auto clock2 = std::chrono::high_resolution_clock::now();
 
 const std::unordered_map<wchar_t, wchar_t> tileMap {
     {L'#', 0x2588},
-    {L'.', L' '}
+    {L'.', L' '},
+    {L'!', 0x2591},
+    {L'@', 0x2691}
 };
 
 struct Map {
+private:
+    void playerPos(void) {
+        for (int i = 0; i < nScreenHeight; i++) {
+            for (int j = 0; j < nScreenWidth; j++) {
+                if (this->gameMap[i][j] == L'0') {
+                    this->gameMap[i][j] = L'.'; 
+                    position.push_back(i);
+                    position.push_back(j);
+                    return;
+                }
+            }
+        }
+        MessageBox(NULL, "No player set.", "Error", MB_OK | MB_ICONERROR);
+        abort();
+    }
+
+public:
     std::vector<std::vector<char>> gameMap;
     int width;
     int height;
+
 
     void loadMap(const std::string& filename) {
         std::ifstream file(filename);
@@ -57,6 +79,7 @@ struct Map {
             return;
         }
 
+        playerPos();
     }
 };
 
@@ -71,7 +94,7 @@ public:
 
     //Constants (adjust these)
     float fPlayerJumpVelo = 6.0f;
-    float fPlayerFallAccel = 6.0f;
+    float fPlayerFallAccel = 6.5f;
     float fPlayerXAccel = 16.0f;
     float fFrictionCoefficient = 0.2f;
 
@@ -160,6 +183,8 @@ void render(const Player& player, const Map& map, HANDLE& console, wchar_t* scre
             auto it = tileMap.find(tile);
             if (it != tileMap.end()) {
                 screen[i * map.width + j] = it->second;
+            } else {
+                screen[i * map.width + j] = tile;
             }
         }
     }
@@ -172,12 +197,13 @@ void render(const Player& player, const Map& map, HANDLE& console, wchar_t* scre
         screen[playerY * map.width + playerX] = L'O';
     }
 
-    //Render debugger
+    /*Render debugger
     if (player.bOnGround) {
         screen[0] = L'T';
-    } else screen[0] = L'F';
+    } else screen[0] = L'F'; */
 
     //Render FPS
+    
 
     // Display Frame
     WriteConsoleOutputCharacterW(console, screen, nScreenWidth * nScreenHeight, {0,0}, &dwBytesWritten);
@@ -196,10 +222,11 @@ int main(void) {
     SetConsoleActiveScreenBuffer(hConsole);
 
     //Initialize
-    Player player(20, 24);
     Map map;
-    map.loadMap("map.txt");
-    
+    map.loadMap("map2.txt");
+    Player player(position[0], position[1]);
+
+
     //Game Loop
     while(true) {
         render(player, map, hConsole, screen);
